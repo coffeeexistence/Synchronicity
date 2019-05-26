@@ -10,13 +10,9 @@ type MidiMessage = {
 export default (streamName: string): Rx.Subject<MidiMessage> => {
   const stream: Rx.Subject<MidiMessage> = new Rx.Subject();
   const input = new midi.input();
-  input.on("message", (_deltaTime, [type, note, velocity]) => {
-    stream.next({
-      type,
-      note,
-      velocity
-    });
-  });
+  input.on("message", (_deltaTime, [type, note, velocity]) =>
+    stream.next({ type, note, velocity })
+  );
   input.openVirtualPort(streamName);
   return stream;
 };
