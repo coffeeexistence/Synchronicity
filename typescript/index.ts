@@ -1,8 +1,61 @@
 import Rx = require("rxjs");
 import { map, filter, mergeMap, take, mapTo } from "rxjs/operators";
+import SerialPort = require("serialport");
 import createAndReturnVirtualPortStream, {
   MidiMessage
 } from "./createAndReturnVirtualPortStream";
+
+type LightChangeInstruction = {
+  startPixel: number;
+  endPixel: number;
+  colorPreset: ColorPreset;
+};
+
+const port = new SerialPort("/dev/cu.usbmodem14401", {
+  baudRate: 9600,
+  databits: 8,
+  autoOpen: false
+});
+
+port.on("data", data => {
+  console.log(data.toString());
+});
+
+const openPort = () =>
+  new Promise((resolve, reject) => {
+    port.open(error => {
+      if (error) {
+        console.error("Error while opening the port " + error);
+        reject(error);
+      } else {
+        resolve();
+      }
+    });
+  });
+
+const sendLightChangeInstruction = async (
+  instruction: LightChangeInstruction
+) => {
+  // Using strings because ints have horrible issues with the serialport library
+  let instructions = [
+    instruction.startPixel,
+    instruction.endPixel,
+    instruction.colorPreset
+  ];
+  const instructionString = `${instructions.join("-")}-\n`;
+  console.log("string: ", instructionString);
+
+  port.write(instructionString, (err, _result) => {
+    if (err) {
+      console.error("port write error", err);
+    }
+    // port.write(instructionString, (err, _result) => {
+    //   if (err) {
+    //     console.error("port write error", err);
+    //   }
+    // });
+  });
+};
 
 const messageTypes = {
   ON: 144,
@@ -26,24 +79,21 @@ enum ColorPreset {
   LIGHT_RED = 1
 }
 
-type LightChangeInstruction = {
-  startPixel: number;
-  endPixel: number;
-  colorPreset: ColorPreset;
-};
-
 type LightChangeInstructions = {
   onNoteStart: LightChangeInstruction;
   onNoteEnd: LightChangeInstruction;
 };
 
+const pixelCount = 60;
 const getLightChangeInstructionsForNoteMessage = (
   midiMessage: MidiMessage
 ): LightChangeInstructions => {
+  const relativeNote = midiMessage.note % 12;
+  const multiplier = Math.floor(pixelCount / 12);
   const onNoteStart = {
-    startPixel: 0,
-    endPixel: 20,
-    colorPreset: ColorPreset.LIGHT_RED
+    startPixel: multiplier * relativeNote,
+    endPixel: multiplier * relativeNote + multiplier,
+    colorPreset: 1 + Math.floor(Math.random() * 5)
   };
   return {
     onNoteStart,
@@ -70,7 +120,13 @@ const lightChangeStream: Rx.Observable<
   })
 );
 
-lightChangeStream.subscribe(message => {
-  console.log("lightChangeStream", message);
-});
-console.log("subscribed to midi event stream");
+const initializeMainApplication = async () => {
+  await openPort();
+  lightChangeStream.subscribe(lightChangeInstruction => {
+    console.log("lightChangeStream", lightChangeInstruction);
+    sendLightChangeInstruction(lightChangeInstruction);
+  });
+  console.log("initializeMainApplication complete");
+};
+
+initializeMainApplication();

@@ -9,7 +9,7 @@
 //   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
 //   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
-#define pixel_count 150
+#define pixel_count 60
 
 // Memory (SRAM) usage table:
 // 450 bytes: Adafruit_NeoPixel strip
@@ -19,10 +19,9 @@
 // Uno total: 2048 bytes
 // Remaining: 398 bytes
 
-#define SET_DESTINATION_STATE_SERIAL_HEADER_BYTE 0
 #define SET_DESTINATION_STATE_SERIAL_BYTE_LENGTH 3
 
-#define verboseSerialOutput true
+#define verboseSerialOutput false
 
 // 24 byte Serial Strip Instruction
 // These will be read out from serial port one at a time
@@ -48,9 +47,14 @@ enum EColorPresets
 };
 
 // Extraneous duplication here
-RGB colorPresets[2] = {
-    {0, 0, 0}, // 0 COLOR_BLANK
-    {6, 2, 2}  // 1 COLOR_SOFT_RED
+uint8_t colorPresetsLength = 6;
+RGB colorPresets[6] = {
+    {0, 0, 0},   // 0 COLOR_BLANK
+    {24, 8, 8},  // 1 COLOR_SOFT_RED
+    {8, 24, 8},  // 2 COLOR_SOFT_GREEN
+    {8, 8, 24},  // 3 COLOR_SOFT_BLUE
+    {24, 8, 24}, // 4 COLOR_SOFT_?
+    {24, 24, 8}, // 5 COLOR_SOFT_?
 };
 
 // 3 bytes SRAM per RGB value
@@ -58,7 +62,7 @@ RGB currentState[pixel_count];
 RGB destinationState[pixel_count];
 
 int loopDelay = 1;
-int interpolationRate = 8; // Every n loops
+int interpolationRate = 2; // Every n loops
 uint16_t iterationCount = 0;
 
 // 3 bytes SRAM per strip pixel
@@ -69,12 +73,11 @@ void setup()
   Serial.begin(9600); // opens serial port, sets data rate to 9600 bps
   strip.begin();
   strip.show(); // Initialize all pixels to 'off'
+  pinMode(LED_BUILTIN, OUTPUT);
 }
 
 void loop()
 {
-  // Test code
-  StripInstruction instruction;
   if (iterationCount == 1000)
   {
     iterationCount = 0;
@@ -82,21 +85,16 @@ void loop()
 
   if (iterationCount == 0)
   {
-    instruction.startPixel = 0;
-    instruction.endPixel = 20;
-    instruction.colorPreset = COLOR_BLANK;
-    setDestinationStateFromStripInstruction(instruction);
+    digitalWrite(LED_BUILTIN, HIGH);
   }
 
-  if (iterationCount == 500)
+  else if (iterationCount == 500)
   {
-    instruction.startPixel = 0;
-    instruction.endPixel = 20;
-    instruction.colorPreset = COLOR_SOFT_RED;
-    setDestinationStateFromStripInstruction(instruction);
+    digitalWrite(LED_BUILTIN, LOW);
   }
-  // end test code
-  readSerialDataIfAvailable() if (iterationCount % interpolationRate == 0)
+
+  readSerialDataIfAvailable();
+  if (iterationCount % interpolationRate == 0)
   {
     interpolateCurrentStateTowardsDestinationState();
     setStripToCurrentState();
@@ -105,36 +103,82 @@ void loop()
   delay(loopDelay);
 }
 
+void onUnexpectedData()
+{
+  Serial.println("UNEX");
+}
+
 // Little helper function that prints out incoming data if verboseSerialOutput is true
 uint8_t readSerial()
 {
   // Serial buffer is 64 bytes
   uint8_t incomingByte = Serial.read();
-  if (verboseSerialOutput)
-  {
-    Serial.print("I received: ");
-    Serial.println(incomingByte, DEC);
-  }
+  // if (verboseSerialOutput)
+  // {
+  //   Serial.println(incomingByte, DEC);
+  // }
   return incomingByte;
 }
 
+// Anywhere from "0-0-0\n" to "255-255-255\n"
+String inputString = "";
+uint8_t inputFields[3];
+uint8_t inputFieldsIndex = 0;
+
 void readSerialDataIfAvailable()
 {
-  if (Serial.available() == 0)
-    return;
-
-  if (incomingByte == SET_DESTINATION_STATE_SERIAL_HEADER_BYTE)
+  while (Serial.available() > 0)
   {
-    StripInstruction instructions;
-    instructions.startPixel = readSerial();
-    instructions.endPixel = readSerial();
-    instructions.colorPreset = readSerial();
-    setDestinationStateFromStripInstruction(instructions)
+    int inChar = Serial.read();
+    if (isDigit(inChar))
+    {
+      // convert the incoming byte to a char and add it to the string:
+      inputString += (char)inChar;
+    }
+    else if ((char)inChar == '-')
+    {
+      inputFields[inputFieldsIndex] = inputString.toInt();
+      inputFieldsIndex++;
+      // Serial.println("X");
+      // Serial.print(inputString);
+      // Serial.println("X");
+      inputString = "";
+    }
+    else if (inChar == '\n')
+    {
+      inputFields[inputFieldsIndex] = inputString.toInt();
+
+      StripInstruction instruction;
+      instruction.startPixel = inputFields[0];
+      instruction.endPixel = inputFields[1];
+      instruction.colorPreset = inputFields[2];
+      setDestinationStateFromStripInstruction(instruction);
+
+      inputFieldsIndex = 0;
+      inputString = "";
+
+      // Serial.println(inputString.toInt());
+      // Serial.println("START");
+      // Serial.print(instruction.startPixel);
+      // Serial.print("-");
+      // Serial.print(instruction.endPixel);
+      // Serial.print("-");
+      // Serial.print(instruction.colorPreset);
+      // Serial.print(".");
+      // clear the string for new input:
+    }
   }
 }
 
 void setDestinationStateFromStripInstruction(StripInstruction instruction)
 {
+  if (instruction.startPixel >= pixel_count)
+    return onUnexpectedData();
+  if (instruction.endPixel >= pixel_count)
+    return onUnexpectedData();
+  if (instruction.colorPreset > colorPresetsLength)
+    return onUnexpectedData();
+
   for (uint8_t i = instruction.startPixel; i <= instruction.endPixel; i++)
   {
     destinationState[i] = colorPresets[instruction.colorPreset];
@@ -159,7 +203,8 @@ void interpolateCurrentStateTowardsDestinationState()
       }
       else
       {
-        currentRGBValue.r--;
+        if (iterationCount % 8 == 0)
+          currentRGBValue.r--;
       }
     }
 
@@ -171,7 +216,8 @@ void interpolateCurrentStateTowardsDestinationState()
       }
       else
       {
-        currentRGBValue.g--;
+        if (iterationCount % 8 == 0)
+          currentRGBValue.g--;
       }
     }
 
@@ -183,7 +229,8 @@ void interpolateCurrentStateTowardsDestinationState()
       }
       else
       {
-        currentRGBValue.b--;
+        if (iterationCount % 8 == 0)
+          currentRGBValue.b--;
       }
     }
     currentState[i] = currentRGBValue;
