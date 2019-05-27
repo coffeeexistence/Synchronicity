@@ -1,7 +1,7 @@
 import midi = require("midi");
 import Rx = require("rxjs");
 
-type MidiMessage = {
+export type MidiMessage = {
   type: number;
   note: number;
   velocity: number;
