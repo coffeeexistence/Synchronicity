@@ -19,7 +19,10 @@
 // Uno total: 2048 bytes
 // Remaining: 398 bytes
 
-// 3 bytes SRAM per pixel
+#define SET_DESTINATION_STATE_SERIAL_HEADER_BYTE 0
+#define SET_DESTINATION_STATE_SERIAL_BYTE_LENGTH 3
+
+#define verboseSerialOutput true
 
 // 24 byte Serial Strip Instruction
 // These will be read out from serial port one at a time
@@ -58,16 +61,19 @@ int loopDelay = 1;
 int interpolationRate = 8; // Every n loops
 uint16_t iterationCount = 0;
 
+// 3 bytes SRAM per strip pixel
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(pixel_count, PIN, NEO_GRB + NEO_KHZ800);
 
 void setup()
 {
+  Serial.begin(9600); // opens serial port, sets data rate to 9600 bps
   strip.begin();
   strip.show(); // Initialize all pixels to 'off'
 }
 
 void loop()
 {
+  // Test code
   StripInstruction instruction;
   if (iterationCount == 1000)
   {
@@ -89,14 +95,42 @@ void loop()
     instruction.colorPreset = COLOR_SOFT_RED;
     setDestinationStateFromStripInstruction(instruction);
   }
-
-  if (iterationCount % interpolationRate == 0)
+  // end test code
+  readSerialDataIfAvailable() if (iterationCount % interpolationRate == 0)
   {
     interpolateCurrentStateTowardsDestinationState();
     setStripToCurrentState();
   }
   iterationCount++;
   delay(loopDelay);
+}
+
+// Little helper function that prints out incoming data if verboseSerialOutput is true
+uint8_t readSerial()
+{
+  // Serial buffer is 64 bytes
+  uint8_t incomingByte = Serial.read();
+  if (verboseSerialOutput)
+  {
+    Serial.print("I received: ");
+    Serial.println(incomingByte, DEC);
+  }
+  return incomingByte;
+}
+
+void readSerialDataIfAvailable()
+{
+  if (Serial.available() == 0)
+    return;
+
+  if (incomingByte == SET_DESTINATION_STATE_SERIAL_HEADER_BYTE)
+  {
+    StripInstruction instructions;
+    instructions.startPixel = readSerial();
+    instructions.endPixel = readSerial();
+    instructions.colorPreset = readSerial();
+    setDestinationStateFromStripInstruction(instructions)
+  }
 }
 
 void setDestinationStateFromStripInstruction(StripInstruction instruction)
