@@ -21,15 +21,16 @@ let lastSentDate = 0;
 const timeDiffs = [];
 
 port.on("data", data => {
-  const timeDiff = Date.now() - lastSentDate;
-  timeDiffs.unshift(timeDiff);
-  if (timeDiffs.length > 5) {
-    timeDiffs.pop();
-  }
-  const timeDiffAverage =
-    timeDiffs.reduce((prev, curr) => prev + curr, 0) / timeDiffs.length;
+  // const timeDiff = Date.now() - lastSentDate;
+  // timeDiffs.unshift(timeDiff);
+  // if (timeDiffs.length > 5) {
+  //   timeDiffs.pop();
+  // }
+  // const timeDiffAverage =
+  //   timeDiffs.reduce((prev, curr) => prev + curr, 0) / timeDiffs.length;
 
-  console.log(data.toString(), `avg-diff: ${timeDiffAverage}ms`);
+  // console.log(data.toString(), `avg-diff: ${timeDiffAverage}ms`);
+  console.log(data.toString());
 });
 
 const openPort = () =>

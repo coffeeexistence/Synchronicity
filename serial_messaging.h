@@ -1,4 +1,4 @@
-#include "type_definitions.ino";
+#include "./type_definitions.h";
 
 // Usage:
 /*
@@ -27,10 +27,6 @@ StripInstruction serial_getNewSerialInstruction()
 
 void serial_checkForNewStripInstruction()
 {
-    if (Serial.available() > 0)
-    {
-        Serial.println("√");
-    }
     while (Serial.available() > 0)
     {
         int inChar = Serial.read();
@@ -56,6 +52,7 @@ void serial_checkForNewStripInstruction()
             serial_hasNewStripInstruction = true;
             inputFieldsIndex = 0;
             inputString = "";
+            // Serial.println("√");
             return;
         }
     }
