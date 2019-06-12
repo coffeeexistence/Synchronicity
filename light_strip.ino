@@ -6,7 +6,7 @@
 
 #define PIN 15
 #define LED_BUILTIN 2
-#define defaultAnimationDurationMillis 200
+#define defaultAnimationDurationMillis 150
 #define pixel_count 150
 
 #define verboseSerialOutput false
@@ -89,7 +89,7 @@ void updateCurrentStateBasedOnCurrentAnimations()
       {
         linearAnimationProgress = 1;
       }
-      linearAnimationProgress = easing_easeInOutCubic(linearAnimationProgress);
+      linearAnimationProgress = easing_easeOutCubic(linearAnimationProgress);
 
       uint8_t pixelRangeSize = animation.instruction.endPixel - animation.instruction.startPixel;
       setPixelRangeToColor(
