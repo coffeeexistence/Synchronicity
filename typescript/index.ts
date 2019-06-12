@@ -11,14 +11,25 @@ type LightChangeInstruction = {
   colorPreset: ColorPreset;
 };
 
-const port = new SerialPort("/dev/cu.usbmodem14401", {
-  baudRate: 9600,
+const port = new SerialPort("/dev/cu.SLAB_USBtoUART", {
+  baudRate: 115200,
   databits: 8,
   autoOpen: false
 });
 
+let lastSentDate = 0;
+const timeDiffs = [];
+
 port.on("data", data => {
-  console.log(data.toString());
+  const timeDiff = Date.now() - lastSentDate;
+  timeDiffs.unshift(timeDiff);
+  if (timeDiffs.length > 5) {
+    timeDiffs.pop();
+  }
+  const timeDiffAverage =
+    timeDiffs.reduce((prev, curr) => prev + curr, 0) / timeDiffs.length;
+
+  console.log(data.toString(), `avg-diff: ${timeDiffAverage}ms`);
 });
 
 const openPort = () =>
@@ -33,9 +44,7 @@ const openPort = () =>
     });
   });
 
-const sendLightChangeInstruction = async (
-  instruction: LightChangeInstruction
-) => {
+const sendLightChangeInstruction = (instruction: LightChangeInstruction) => {
   // Using strings because ints have horrible issues with the serialport library
   let instructions = [
     instruction.startPixel,
@@ -44,7 +53,7 @@ const sendLightChangeInstruction = async (
   ];
   const instructionString = `${instructions.join("-")}-\n`;
   console.log("string: ", instructionString);
-
+  lastSentDate = Date.now();
   port.write(instructionString, (err, _result) => {
     if (err) {
       console.error("port write error", err);
@@ -84,7 +93,7 @@ type LightChangeInstructions = {
   onNoteEnd: LightChangeInstruction;
 };
 
-const pixelCount = 60;
+const pixelCount = 150;
 const getLightChangeInstructionsForNoteMessage = (
   midiMessage: MidiMessage
 ): LightChangeInstructions => {
@@ -95,6 +104,12 @@ const getLightChangeInstructionsForNoteMessage = (
     endPixel: multiplier * relativeNote + multiplier,
     colorPreset: 1 + Math.floor(Math.random() * 5)
   };
+  if (onNoteStart.startPixel > pixelCount - 1) {
+    throw new Error("startPixel too high, value:" + onNoteStart.startPixel);
+  }
+  if (onNoteStart.endPixel > pixelCount - 1) {
+    throw new Error("endPixel too high, value:" + onNoteStart.endPixel);
+  }
   return {
     onNoteStart,
     onNoteEnd: { ...onNoteStart, colorPreset: ColorPreset.BLANK }
